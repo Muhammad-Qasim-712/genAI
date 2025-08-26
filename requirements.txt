@@ -9,7 +9,7 @@ torch
 torchvision
 ultralytics
 sentence-transformers
-opencv-python
+opencv-python-headless
 scikit-learn
 faiss-cpu
 
