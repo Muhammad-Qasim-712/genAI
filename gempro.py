@@ -247,13 +247,15 @@ elif app_mode == "Object Detection" and YOLO_AVAILABLE:
                 results = model_yolo(image)
                 result_image_bgr = results[0].plot()
                 result_image_rgb = Image.fromarray(result_image_bgr[..., ::-1])
+                
+                # Display the detection result image
                 with col2:
                     st.image(result_image_rgb, caption="Image with Detections", use_column_width=True)
                 
-                # Generate detection summary and store in session
+                # Generate detection summary for email functionality
                 detections = results[0].boxes
                 if detections is not None and len(detections) > 0:
-                    detection_summary = f"Object Detection Results:\n"
+                    detection_summary = f"Object Detection Results for {uploaded_image.name}:\n"
                     detection_summary += f"Found {len(detections)} objects:\n\n"
                     
                     for i, box in enumerate(detections):
@@ -262,16 +264,11 @@ elif app_mode == "Object Detection" and YOLO_AVAILABLE:
                         class_name = model_yolo.names[class_id]
                         detection_summary += f"{i+1}. {class_name} (Confidence: {confidence:.2f})\n"
                 else:
-                    detection_summary = "No objects detected in the image."
+                    detection_summary = f"No objects detected in {uploaded_image.name}."
                 
-                # Store the detection result in session state
+                # Store the detection result in session state for email functionality
                 st.session_state.messages[app_mode].append({"role": "user", "content": f"Uploaded image: {uploaded_image.name}"})
                 st.session_state.messages[app_mode].append({"role": "assistant", "content": detection_summary})
-                
-                # Display the summary
-                st.success("Detection complete!")
-                with st.expander("Detection Summary"):
-                    st.write(detection_summary)
                     
             except Exception as e:
                 error_message = f"An error occurred during object detection: {e}"
