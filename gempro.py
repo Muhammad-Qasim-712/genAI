@@ -4,24 +4,16 @@ import os
 from PyPDF2 import PdfReader
 from docx import Document
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.embeddings import HuggingFaceEmbeddings
-from langchain.vectorstores import FAISS
+from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_community.vectorstores import FAISS
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-
-# Handle YOLO import with error handling for cloud deployment
-YOLO_AVAILABLE = False
-try:
-    from ultralytics import YOLO
-    from PIL import Image
-    import numpy as np
-    YOLO_AVAILABLE = True
-except ImportError as e:
-    st.warning(f"Object detection is not available in this deployment environment. Error: {e}")
-    YOLO_AVAILABLE = False
-
-import sys
+from email.mime.image import MIMEImage # New import for image attachments
+from ultralytics import YOLO
+from PIL import Image
+import numpy as np
+import io # New import for handling image bytes
 
 # --- Page Configuration ---
 st.set_page_config(
@@ -32,14 +24,25 @@ st.set_page_config(
 
 # --- Helper Functions ---
 
-def send_email(recipient_email, subject, body, sender_email, sender_password):
-    """Sends an email using SMTP."""
+# Updated send_email function to handle optional image attachments
+def send_email(recipient_email, subject, body, sender_email, sender_password, image=None):
+    """Sends an email using SMTP, with an optional image attachment."""
     try:
         message = MIMEMultipart()
         message["From"] = sender_email
         message["To"] = recipient_email
         message["Subject"] = subject
         message.attach(MIMEText(body, "plain"))
+
+        # If an image is provided, attach it
+        if image is not None:
+            with io.BytesIO() as output:
+                image.save(output, format="PNG")
+                image_bytes = output.getvalue()
+            
+            img_attachment = MIMEImage(image_bytes, name="detected_objects.png")
+            message.attach(img_attachment)
+
         with smtplib.SMTP("smtp.gmail.com", 587) as server:
             server.starttls()
             server.login(sender_email, sender_password)
@@ -97,8 +100,6 @@ st.title("🤖 Multi-Mode AI Assistant (Gemini Edition)")
 # --- Sidebar Configuration ---
 with st.sidebar:
     st.header("Configuration")
-    # !!! IMPORTANT SECURITY FIX: Loading the API key securely from Streamlit Secrets
-    # Make sure you have added your key in the app's settings on Streamlit Cloud.
     api_key = st.secrets.get("api_key")
 
     st.header("Email Configuration")
@@ -107,14 +108,9 @@ with st.sidebar:
     st.info("For Gmail, you need to generate an 'App Password'.")
 
     st.header("Mode")
-    # Only show Object Detection if YOLO is available
-    mode_options = ["Generic Chat", "Chat with Documents (RAG)"]
-    if YOLO_AVAILABLE:
-        mode_options.append("Object Detection")
-    
     app_mode = st.radio(
         "Choose the assistant mode:",
-        mode_options
+        ("Generic Chat", "Chat with Documents (RAG)", "Object Detection")
     )
 
 # --- API Key Check and Model Initialization ---
@@ -213,67 +209,44 @@ elif app_mode == "Generic Chat":
             st.session_state.messages[app_mode].append({"role": "assistant", "content": response.text})
 
 # --- Object Detection Mode Logic ---
-elif app_mode == "Object Detection" and YOLO_AVAILABLE:
+elif app_mode == "Object Detection":
     st.header("Object Detection with YOLO")
     st.write("Upload an image to detect objects within it.")
-
-    # Display previous detection results with email options
-    for i, message in enumerate(st.session_state.messages[app_mode]):
-        with st.chat_message(message["role"]):
-            st.markdown(message["content"])
-            if message["role"] == "assistant":
-                with st.expander("✉️ Email this response"):
-                    with st.form(key=f"email_form_detection_{i}"):
-                        recipient = st.text_input("Recipient's Email Address")
-                        if st.form_submit_button("Send"):
-                            if st.session_state.sender_email and st.session_state.sender_password:
-                                with st.spinner("Sending email..."):
-                                    if send_email(recipient, "Object Detection Results", message["content"], st.session_state.sender_email, st.session_state.sender_password):
-                                        st.success(f"Email sent to {recipient}!")
-                            else:
-                                st.warning("Please configure your email credentials in the sidebar.")
 
     uploaded_image = st.file_uploader("Choose an image...", type=["jpg", "jpeg", "png"])
 
     if uploaded_image is not None:
         image = Image.open(uploaded_image)
-        col1, col2 = st.columns(2)
-        with col1:
-            st.image(image, caption="Uploaded Image", use_column_width=True)
+        st.image(image, caption="Uploaded Image", use_column_width=True)
 
-        with st.spinner("Detecting objects..."):
-            try:
-                model_yolo = YOLO('yolov8n.pt') 
-                results = model_yolo(image)
-                result_image_bgr = results[0].plot()
-                result_image_rgb = Image.fromarray(result_image_bgr[..., ::-1])
-                
-                # Display the detection result image
-                with col2:
+        if st.button("Detect Objects"):
+            with st.spinner("Detecting objects..."):
+                try:
+                    model_yolo = YOLO('yolov8n.pt') 
+                    results = model_yolo(image)
+                    result_image_bgr = results[0].plot()
+                    result_image_rgb = Image.fromarray(result_image_bgr[..., ::-1])
+                    
                     st.image(result_image_rgb, caption="Image with Detections", use_column_width=True)
-                
-                # Generate detection summary for email functionality
-                detections = results[0].boxes
-                if detections is not None and len(detections) > 0:
-                    detection_summary = f"Object Detection Results for {uploaded_image.name}:\n"
-                    detection_summary += f"Found {len(detections)} objects:\n\n"
-                    
-                    for i, box in enumerate(detections):
-                        class_id = int(box.cls[0])
-                        confidence = float(box.conf[0])
-                        class_name = model_yolo.names[class_id]
-                        detection_summary += f"{i+1}. {class_name} (Confidence: {confidence:.2f})\n"
-                else:
-                    detection_summary = f"No objects detected in {uploaded_image.name}."
-                
-                # Store the detection result in session state for email functionality
-                st.session_state.messages[app_mode].append({"role": "user", "content": f"Uploaded image: {uploaded_image.name}"})
-                st.session_state.messages[app_mode].append({"role": "assistant", "content": detection_summary})
-                    
-            except Exception as e:
-                error_message = f"An error occurred during object detection: {e}"
-                st.error(error_message)
-                st.session_state.messages[app_mode].append({"role": "assistant", "content": error_message})
+
+                    # New section to email the detected image
+                    st.markdown("---")
+                    st.subheader("✉️ Email the Detected Image")
+                    with st.form(key="email_detection_form"):
+                        recipient = st.text_input("Recipient's Email Address")
+                        submitted = st.form_submit_button("Send Email")
+                        if submitted:
+                            if not recipient:
+                                st.warning("Please enter a recipient's email address.")
+                            elif st.session_state.sender_email and st.session_state.sender_password:
+                                with st.spinner("Sending email..."):
+                                    email_body = "Attached is the image with the detected objects."
+                                    if send_email(recipient, "Object Detection Result", email_body, st.session_state.sender_email, st.session_state.sender_password, image=result_image_rgb):
+                                        st.success(f"Email with detected image sent to {recipient}!")
+                            else:
+                                st.warning("Please configure your email credentials in the sidebar to send emails.")
+                except Exception as e:
+                    st.error(f"An error occurred during object detection: {e}")
 
 # --- Common UI Elements ---
 with st.sidebar:
