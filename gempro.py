@@ -9,9 +9,18 @@ from langchain.vectorstores import FAISS
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from ultralytics import YOLO
-from PIL import Image
-import numpy as np
+
+# Handle YOLO import with error handling for cloud deployment
+YOLO_AVAILABLE = False
+try:
+    from ultralytics import YOLO
+    from PIL import Image
+    import numpy as np
+    YOLO_AVAILABLE = True
+except ImportError as e:
+    st.warning(f"Object detection is not available in this deployment environment. Error: {e}")
+    YOLO_AVAILABLE = False
+
 import sys
 
 # --- Page Configuration ---
@@ -98,9 +107,14 @@ with st.sidebar:
     st.info("For Gmail, you need to generate an 'App Password'.")
 
     st.header("Mode")
+    # Only show Object Detection if YOLO is available
+    mode_options = ["Generic Chat", "Chat with Documents (RAG)"]
+    if YOLO_AVAILABLE:
+        mode_options.append("Object Detection")
+    
     app_mode = st.radio(
         "Choose the assistant mode:",
-        ("Generic Chat", "Chat with Documents (RAG)", "Object Detection")
+        mode_options
     )
 
 # --- API Key Check and Model Initialization ---
@@ -199,7 +213,7 @@ elif app_mode == "Generic Chat":
             st.session_state.messages[app_mode].append({"role": "assistant", "content": response.text})
 
 # --- Object Detection Mode Logic ---
-elif app_mode == "Object Detection":
+elif app_mode == "Object Detection" and YOLO_AVAILABLE:
     st.header("Object Detection with YOLO")
     st.write("Upload an image to detect objects within it.")
 

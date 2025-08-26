@@ -7,9 +7,10 @@ pandas
 # Core AI and Machine Learning libraries
 torch
 torchvision
+# Force headless OpenCV before ultralytics installation
+opencv-python-headless==4.8.1.78
 ultralytics
 sentence-transformers
-opencv-python-headless
 scikit-learn
 faiss-cpu
 
