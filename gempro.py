@@ -92,7 +92,7 @@ def get_vector_store(text_chunks):
 
 # --- Main App ---
 
-st.title("🤖 Multi-Mode AI Assistant (Gemini Edition)")
+st.title("🤖 Multi-Mode AI Assistant and Object Detection")
 
 # --- Sidebar Configuration ---
 with st.sidebar:
