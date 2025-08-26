@@ -127,7 +127,6 @@ watchdog==6.0.0
 yarl==1.20.1
 zipp==3.23.0
 zstandard==0.24.0
-=======
 aiohappyeyeballs==2.6.1
 aiohttp==3.12.15
 aiosignal==1.4.0
@@ -258,4 +257,3 @@ watchdog==6.0.0
 yarl==1.20.1
 zipp==3.23.0
 zstandard==0.24.0
->>>>>>> 973860402448c8720011c07d5b9755c2c160688f
