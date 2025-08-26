@@ -92,7 +92,7 @@ def get_vector_store(text_chunks):
 
 # --- Main App ---
 
-st.title("🤖 Multi-Mode AI Assistant and Object Detection")
+st.title("🤖 Multi-Mode AI Assistant (Gemini Edition)")
 
 # --- Sidebar Configuration ---
 with st.sidebar:
@@ -217,6 +217,22 @@ elif app_mode == "Object Detection" and YOLO_AVAILABLE:
     st.header("Object Detection with YOLO")
     st.write("Upload an image to detect objects within it.")
 
+    # Display previous detection results with email options
+    for i, message in enumerate(st.session_state.messages[app_mode]):
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
+            if message["role"] == "assistant":
+                with st.expander("✉️ Email this response"):
+                    with st.form(key=f"email_form_detection_{i}"):
+                        recipient = st.text_input("Recipient's Email Address")
+                        if st.form_submit_button("Send"):
+                            if st.session_state.sender_email and st.session_state.sender_password:
+                                with st.spinner("Sending email..."):
+                                    if send_email(recipient, "Object Detection Results", message["content"], st.session_state.sender_email, st.session_state.sender_password):
+                                        st.success(f"Email sent to {recipient}!")
+                            else:
+                                st.warning("Please configure your email credentials in the sidebar.")
+
     uploaded_image = st.file_uploader("Choose an image...", type=["jpg", "jpeg", "png"])
 
     if uploaded_image is not None:
@@ -233,8 +249,34 @@ elif app_mode == "Object Detection" and YOLO_AVAILABLE:
                 result_image_rgb = Image.fromarray(result_image_bgr[..., ::-1])
                 with col2:
                     st.image(result_image_rgb, caption="Image with Detections", use_column_width=True)
+                
+                # Generate detection summary and store in session
+                detections = results[0].boxes
+                if detections is not None and len(detections) > 0:
+                    detection_summary = f"Object Detection Results:\n"
+                    detection_summary += f"Found {len(detections)} objects:\n\n"
+                    
+                    for i, box in enumerate(detections):
+                        class_id = int(box.cls[0])
+                        confidence = float(box.conf[0])
+                        class_name = model_yolo.names[class_id]
+                        detection_summary += f"{i+1}. {class_name} (Confidence: {confidence:.2f})\n"
+                else:
+                    detection_summary = "No objects detected in the image."
+                
+                # Store the detection result in session state
+                st.session_state.messages[app_mode].append({"role": "user", "content": f"Uploaded image: {uploaded_image.name}"})
+                st.session_state.messages[app_mode].append({"role": "assistant", "content": detection_summary})
+                
+                # Display the summary
+                st.success("Detection complete!")
+                with st.expander("Detection Summary"):
+                    st.write(detection_summary)
+                    
             except Exception as e:
-                st.error(f"An error occurred during object detection: {e}")
+                error_message = f"An error occurred during object detection: {e}"
+                st.error(error_message)
+                st.session_state.messages[app_mode].append({"role": "assistant", "content": error_message})
 
 # --- Common UI Elements ---
 with st.sidebar:
