@@ -9,11 +9,11 @@ from langchain_community.vectorstores import FAISS
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from email.mime.image import MIMEImage # New import for image attachments
+from email.mime.image import MIMEImage
 from ultralytics import YOLO
 from PIL import Image
 import numpy as np
-import io # New import for handling image bytes
+import io
 
 # --- Page Configuration ---
 st.set_page_config(
@@ -23,8 +23,6 @@ st.set_page_config(
 )
 
 # --- Helper Functions ---
-
-# Updated send_email function to handle optional image attachments
 def send_email(recipient_email, subject, body, sender_email, sender_password, image=None):
     """Sends an email using SMTP, with an optional image attachment."""
     try:
@@ -34,7 +32,6 @@ def send_email(recipient_email, subject, body, sender_email, sender_password, im
         message["Subject"] = subject
         message.attach(MIMEText(body, "plain"))
 
-        # If an image is provided, attach it
         if image is not None:
             with io.BytesIO() as output:
                 image.save(output, format="PNG")
@@ -94,8 +91,7 @@ def get_vector_store(text_chunks):
         return None
 
 # --- Main App ---
-
-st.title("🤖 Multi-Mode AI Assistant (Gemini Edition)")
+st.title("🤖 Multi-Mode AI Assistant and Object Detection")
 
 # --- Sidebar Configuration ---
 with st.sidebar:
@@ -150,6 +146,7 @@ if app_mode == "Chat with Documents (RAG)":
                     else: st.error("Could not extract text.")
             else: st.warning("Please upload at least one document.")
 
+    # Display all messages in the history
     for i, message in enumerate(st.session_state.messages[app_mode]):
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
@@ -165,25 +162,29 @@ if app_mode == "Chat with Documents (RAG)":
                             else:
                                 st.warning("Please configure your email credentials in the sidebar.")
 
+    # Handle new user input
     if prompt := st.chat_input("Ask a question about your documents..."):
         st.session_state.messages[app_mode].append({"role": "user", "content": prompt})
-        with st.chat_message("user"): st.markdown(prompt)
-        with st.chat_message("assistant"):
-            if st.session_state.vector_store is not None:
-                with st.spinner("Thinking..."):
-                    docs = st.session_state.vector_store.similarity_search(prompt, k=3)
-                    context = "\n".join([doc.page_content for doc in docs])
-                    prompt_template = f"Use the following context to answer the question. If you don't know, say you don't know.\n\nContext: {context}\n\nQuestion: {prompt}\n\nAnswer:"
-                    response = model.generate_content(prompt_template)
-                    st.markdown(response.text)
-                    st.session_state.messages[app_mode].append({"role": "assistant", "content": response.text})
-            else:
-                st.warning("Please upload and process documents first.")
+        
+        if st.session_state.vector_store is not None:
+            with st.spinner("Thinking..."):
+                docs = st.session_state.vector_store.similarity_search(prompt, k=3)
+                context = "\n".join([doc.page_content for doc in docs])
+                prompt_template = f"Use the following context to answer the question. If you don't know, say you don't know.\n\nContext: {context}\n\nQuestion: {prompt}\n\nAnswer:"
+                response = model.generate_content(prompt_template)
+                st.session_state.messages[app_mode].append({"role": "assistant", "content": response.text})
+        else:
+            st.warning("Please upload and process documents first.")
+            st.session_state.messages[app_mode].append({"role": "assistant", "content": "I can't answer without any documents. Please upload and process your files in the sidebar."})
+        
+        # --- MODIFICATION: Rerun the script to display the new message and its email expander ---
+        st.rerun()
 
 # --- Generic Chat Mode Logic ---
 elif app_mode == "Generic Chat":
     st.header("Generic Chat")
     
+    # Display all messages in the history
     for i, message in enumerate(st.session_state.messages[app_mode]):
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
@@ -199,14 +200,17 @@ elif app_mode == "Generic Chat":
                             else:
                                 st.warning("Please configure your email credentials in the sidebar.")
 
+    # Handle new user input
     if prompt := st.chat_input("What is up?"):
         st.session_state.messages[app_mode].append({"role": "user", "content": prompt})
-        with st.chat_message("user"): st.markdown(prompt)
-        with st.chat_message("assistant"):
+        
+        with st.spinner("Thinking..."):
             chat = model.start_chat(history=[])
             response = chat.send_message(prompt)
-            st.markdown(response.text)
             st.session_state.messages[app_mode].append({"role": "assistant", "content": response.text})
+        
+        # --- MODIFICATION: Rerun the script to display the new message and its email expander ---
+        st.rerun()
 
 # --- Object Detection Mode Logic ---
 elif app_mode == "Object Detection":
@@ -222,6 +226,7 @@ elif app_mode == "Object Detection":
         if st.button("Detect Objects"):
             with st.spinner("Detecting objects..."):
                 try:
+                    # Note: This will download the model the first time it's run in an environment
                     model_yolo = YOLO('yolov8n.pt') 
                     results = model_yolo(image)
                     result_image_bgr = results[0].plot()
@@ -229,7 +234,6 @@ elif app_mode == "Object Detection":
                     
                     st.image(result_image_rgb, caption="Image with Detections", use_column_width=True)
 
-                    # New section to email the detected image
                     st.markdown("---")
                     st.subheader("✉️ Email the Detected Image")
                     with st.form(key="email_detection_form"):
