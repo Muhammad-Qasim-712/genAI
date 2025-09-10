@@ -187,7 +187,7 @@ Contributions are welcome! Please follow these steps:
 
 If you encounter issues or have questions:
 - 🐛 [Create an Issue](https://github.com/yourusername/multi-mode-ai-assistant/issues)
-- 📧 Contact: your-email@example.com
+- 📧 Contact: qasim2itec@gmail.com
 - 💬 [Discussions](https://github.com/yourusername/multi-mode-ai-assistant/discussions)
 
 ## Acknowledgments
@@ -199,4 +199,3 @@ If you encounter issues or have questions:
 
 ---
 
-Made with ❤️ using Streamlit and Google AI
