@@ -186,9 +186,8 @@ Contributions are welcome! Please follow these steps:
 ## Support
 
 If you encounter issues or have questions:
-- 🐛 [Create an Issue](https://github.com/yourusername/multi-mode-ai-assistant/issues)
 - 📧 Contact: qasim2itec@gmail.com
-- 💬 [Discussions](https://github.com/yourusername/multi-mode-ai-assistant/discussions)
+
 
 ## Acknowledgments
 
